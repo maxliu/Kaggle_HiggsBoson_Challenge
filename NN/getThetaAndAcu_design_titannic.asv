@@ -1,0 +1,176 @@
+%% input 
+
+% hidden_layer_size
+% X % training set
+% y y1  %training y
+% smallsetNum % number of data we would like to use % -1 indicate using
+% all the data
+% percentOfCV % percentage of smallsetNum for cross validation eg. 0.1
+% means 10%
+% lambda
+% MaxIter
+
+%% output
+
+% Theta1
+% Theta2
+% AcuTrain
+% AcuCV
+%% Initialization
+clear ; close all; clc
+
+% Load Training Data
+fprintf('Loading and Visualizing Data ...\n')
+
+load train_data.mat 
+% X y 
+
+%% input parameters
+lambda =10  %  You should also try different values of lambda0.01
+hidden_layer_size = 200; %25; %200;   % 25 hidden units
+percentOfCV = 0.05;
+smallsetNumIn = -1 ;%1000;
+MaxIter = 1000;
+
+%% Setup the parameters for NN
+input_layer_size  = size(X,2);  % 28x28 Input Images of Digits
+
+num_labels = 1 ; %size(y,1);          % 10 labels, from 1 to 10   
+                          % (note that we have mapped "0" to label 10)
+                          
+filename = ['smallsetNumIn_', num2str(smallsetNumIn),...
+    '_hidden_layer_size_', num2str(hidden_layer_size),...
+    '_lambda_',num2str(lambda),...
+    '_MaxIter_',num2str(MaxIter),...
+    '_percentOfCV_',num2str(percentOfCV)...
+    '.mat'
+    ]
+
+%% set up trainning set
+
+if smallsetNumIn==-1
+    smallsetNum = length(X);
+else
+    smallsetNum = smallsetNumIn;
+end
+
+smallsetNumTran = floor(smallsetNum*(1-percentOfCV));
+smallsetNumCV = smallsetNum - smallsetNumTran;
+
+sel = randperm(size(X, 1));
+sel = sel(1:smallsetNum);
+
+X5k = X(sel, :);
+y5k = y(sel);
+
+
+%% select data as cross validation set
+
+sel = randperm(size(X5k, 1));
+sel = sel(1:smallsetNumTran);
+
+X5kTrain = X5k(sel,:);
+y5kTrain = y5k(sel);
+
+
+seldiff = setdiff(1:smallsetNum, sel);
+
+X5kCV = X5k(seldiff,:);
+y5kCV = y5k(seldiff);
+
+
+X=X5kTrain;
+y=y5kTrain;
+
+%% Initializing Pameters 
+
+fprintf('\nInitializing Neural Network Parameters ...\n')
+
+initial_Theta1 = randInitializeWeights(input_layer_size, hidden_layer_size);
+initial_Theta2 = randInitializeWeights(hidden_layer_size, num_labels);
+
+% Unroll parameters
+initial_nn_params = [initial_Theta1(:) ; initial_Theta2(:)];
+
+
+%% Training NN ===================
+
+fprintf('\nTraining Neural Network... \n')
+
+
+options = optimset('MaxIter', MaxIter);
+
+
+% Create "short hand" for the cost function to be minimized
+costFunction = @(p) nnCostFunction(p, ...
+                                   input_layer_size, ...
+                                   hidden_layer_size, ...
+                                   num_labels,X5kTrain, y5kTrain, lambda);
+
+% Now, costFunction is a function that takes in only one argument (the
+% neural network parameters)
+[nn_params, cost] = fmincg(costFunction, initial_nn_params, options);
+
+% Obtain Theta1 and Theta2 back from nn_params
+Theta1 = reshape(nn_params(1:hidden_layer_size * (input_layer_size + 1)), ...
+                 hidden_layer_size, (input_layer_size + 1));
+
+Theta2 = reshape(nn_params((1 + (hidden_layer_size * (input_layer_size + 1))):end), ...
+                 num_labels, (hidden_layer_size + 1));
+
+fprintf('Program paused. Press enter to continue.\n');
+%pause;
+
+
+%% Implement Predict
+
+pred = predict(Theta1, Theta2, X5kTrain);
+
+
+AcuTrain = mean(double(pred == y5kTrain')) * 100;
+fprintf('\nTraining Set Accuracy: %f\n', AcuTrain);
+
+
+%% cross validation check
+
+predCV = predict(Theta1, Theta2, X5kCV);
+
+
+AcuCV = mean(double(predCV == y5kCV')) * 100;
+
+fprintf('\nCV Set Accuracy: %f\n',AcuCV);
+
+
+%% save results
+ save( filename, 'smallsetNum','hidden_layer_size','lambda','MaxIter','percentOfCV','Theta1','Theta2','predCV','AcuCV','AcuTrain','-mat');
+
+ 
+ %% random test
+ sel = randperm(size(X, 1));
+sel = sel(1:100);
+
+X5kR = X(sel, :);
+y5kR = y(sel);
+
+predR = predict(Theta1, Theta2, X5kR);
+
+
+AcuTrain = mean(double(predR == y5kR')) * 100;
+fprintf('Random Set Accuracy: %f\n', AcuTrain);
+ 
+ %% test data
+XYtest = load('test_from_web_improved.txt');
+
+Xtest = XYtest(:,1:end);
+
+predTest = predict(Theta1, Theta2, Xtest);
+
+fid=fopen('sub_2.txt', 'w'); 
+
+ fprintf(fid,'PassengerId,Survived\n');
+ for mx = 1:length(predTest)
+
+    fprintf(fid,'%d,%d\n', mx+891,predTest(mx) );
+ end
+
+fclose(fid);
